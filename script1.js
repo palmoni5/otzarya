@@ -1,6 +1,9 @@
-require(['jquery'], function($) {
-    $(window).on('action:ajaxify.end', function() {
-        // בדיקה שהאלמנט לא קיים כבר כדי למנוע כפילויות
+/* עוטפים את הקוד בפונקציה כדי להגן על המשתנים ומוודאים ש-$ קיים */
+(function($) {
+    'use strict';
+
+    /* הפונקציה הראשית */
+    function initPreviewTooltip() {
         if ($('#topic-preview-tooltip').length === 0) {
             $('body').append('<div id="topic-preview-tooltip"><div class="preview-content">טוען...</div></div>');
         }
@@ -22,40 +25,35 @@ require(['jquery'], function($) {
             }
         }
 
-        // שימוש ב-Delegate event כדי לתפוס גם אלמנטים שנוספו דינמית
-        $('body').on('mouseenter', '[component="topic/header"] a, .topic-title a', function() {
+        /* אירוע כניסה עם העכבר לקישורים */
+        $('body').off('mouseenter.topicPreview').on('mouseenter.topicPreview', '[component="topic/header"] a, .topic-title a', function() {
             cancelHide();
 
             var $link = $(this);
             var href = $link.attr('href');
             
-            // בדיקת תקינות הקישור
             if (!href || !href.includes('/topic/')) return;
 
             var linkOffset = $link.offset();
             var linkHeight = $link.outerHeight();
             var linkWidth = $link.outerWidth();
             
-            // חישוב מיקום ה-Tooltip
             var top = linkOffset.top + linkHeight + 5;
-            var left = linkOffset.left - (550 - linkWidth); // 550 הוא רוחב ה-Tooltip
+            var left = linkOffset.left - (550 - linkWidth);
             if (left < 10) left = linkOffset.left;
 
             $tooltip.css({ top: top + 'px', left: left + 'px' }).show();
 
-            // טעינת התוכן
             if (topicCache[href]) {
                 $tooltip.find('.preview-content').html(topicCache[href]);
             } else {
                 $tooltip.find('.preview-content').text('טוען...');
                 
-                // שימוש ב-NodeBB API
                 $.getJSON('/api' + href, function(data) {
                     if (data && data.posts && data.posts.length > 0) {
                         var content = data.posts[0].content;
                         topicCache[href] = content;
                         
-                        // עדכון רק אם ה-Tooltip עדיין מוצג והמשתמש עדיין על אותו קישור
                         if ($tooltip.is(':visible')) {
                             $tooltip.find('.preview-content').html(content);
                         }
@@ -66,18 +64,20 @@ require(['jquery'], function($) {
             }
         });
 
-        // הסתרה ביציאה מהקישור
-        $('body').on('mouseleave', '[component="topic/header"] a, .topic-title a', function() {
+        /* אירוע יציאה מהקישור */
+        $('body').off('mouseleave.topicPreview').on('mouseleave.topicPreview', '[component="topic/header"] a, .topic-title a', function() {
             scheduleHide();
         });
 
-        // טיפול בהובר על ה-Tooltip עצמו
-        $tooltip.on('mouseenter', function() {
-            cancelHide();
-        });
+        /* אירועים על ה-Tooltip עצמו */
+        $tooltip.on('mouseenter', cancelHide);
+        $tooltip.on('mouseleave', scheduleHide);
+    }
 
-        $tooltip.on('mouseleave', function() {
-            scheduleHide();
-        });
-    });
-});
+    /* הפעלה בעת מעבר דפים ב-NodeBB */
+    $(window).on('action:ajaxify.end', initPreviewTooltip);
+
+    /* הפעלה ראשונית אם הדף כבר טעון */
+    initPreviewTooltip();
+
+})(window.jQuery || window.$);
